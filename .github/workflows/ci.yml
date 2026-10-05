@@ -19,6 +19,15 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # TEMPORARY diagnostic for the lightningcss native-binary build failure — remove once
+      # resolved. Confirms whether npm ci actually placed the Linux binary on disk.
+      - name: Debug lightningcss install
+        run: |
+          node -p "process.version"
+          ls -la apps/web/node_modules/lightningcss/ || echo "lightningcss dir missing"
+          ls -la apps/web/node_modules/lightningcss-linux-x64-gnu/ || echo "lightningcss-linux-x64-gnu dir missing"
+          node -e "require('apps/web/node_modules/lightningcss')" 2>&1 || true
+
       # Reads supabase/migrations/*.sql only — no database connection needed. This is the
       # architecture plan's highest-leverage safeguard: a tenant-scoped table that's missing its
       # RLS policy or FORCE RLS anywhere in the migration history fails the build here, before it
