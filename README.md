@@ -9,7 +9,7 @@ production untouched. Mendeez becomes "tenant #1" here in a later migration phas
 Stack: **Next.js (App Router) + Supabase (Postgres + Auth + Storage) + Drizzle** (schema/migrations
 only, chosen specifically for colocating RLS policies with table definitions) + Stripe (Phase 3+).
 
-## Status: Phase 1–4 built and live-verified end to end, plus a second module (Policy) proving the pattern generalizes. Phase 5 (Mendeez migration) deliberately not started. Pushed to GitHub: `workzap-ai/Mendeez_Command_Center_White_Labeling`.
+## Status: Phase 1–4 built and live-verified end to end, plus a second module (Policy) proving the pattern generalizes. Phase 5 (Mendeez migration) deliberately not started. Pushed to GitHub: `workzap-ai/Mendeez_Command_Center_White_Labeling`, with CI (`.github/workflows/ci.yml`) and a repeatable E2E verification script (`npm run verify:e2e`) covering the manual checks described below.
 
 **Phase 1 — platform skeleton**: tenant resolution (`proxy.ts`), core DB schema + RLS
 (`db/schema/core.ts`), Supabase Auth wiring (custom JWT claim hook), module registry/guard
@@ -178,6 +178,9 @@ supabase/
 scripts/
   check-rls-coverage.mjs  `npm run check:rls` — fails if any tenant-scoped table across the whole
                           migration history is missing its RLS policy or FORCE RLS
+  verify-e2e.mjs          `npm run verify:e2e` — automates the manual curl/cookie checks below
+                          against a running dev server + live Supabase project
+.github/workflows/ci.yml  runs check:rls + lint + build on every push/PR to main
 ```
 
 ## Local development
@@ -187,8 +190,8 @@ Requires Docker Desktop running (the Supabase CLI's local stack uses it).
 1. `npm install` at the repo root (installs both workspaces).
 2. `npm run supabase:start` — first run pulls images and takes a few minutes; prints a Postgres
    URL, API URL, anon key and service_role key. Copy `apps/web/.env.example` to
-   `apps/web/.env.local` and fill those in (`PLATFORM_ROOT_DOMAIN=localhost:3000` is already
-   correct for local dev).
+   `apps/web/.env.local` and fill those in (`PLATFORM_ROOT_DOMAIN=localhost`, no port — see that
+   file's comment for why a port there silently breaks every subdomain match).
 3. `npm run supabase:reset` — applies all migrations and `supabase/seed.sql` (creates the `acme`
    and `zenith` tenants, turns Finance on for acme/off for zenith, seeds a few P&L rows for acme).
    Re-run this any time you change a migration. `npm run check:rls` first if you added a table.
@@ -225,11 +228,35 @@ authenticated; select set_config('request.jwt.claims', '{"sub":"<acme-user-id>",
 and confirm `select * from tenant_memberships` returns only the acme row, never zenith's — that's
 the concrete proof isolation is enforced by Postgres, not just by what the UI happens to show.
 
+## Re-running all of the above in one command
+
+`npm run verify:e2e` (dev server must already be running) automates every check described in this
+file: tenant resolution, module gating both directions, cross-tenant isolation through the real
+app, and admin-panel access control. It signs in as the three fixed test accounts above and
+reconstructs the `@supabase/ssr` session cookie itself — see `scripts/verify-e2e.mjs`'s header
+comment for the exact prerequisites (the three accounts must already exist; this script doesn't
+create them, since that's an Admin API call, not SQL). Override `VERIFY_BASE_URL` /
+`VERIFY_ROOT_DOMAIN` env vars if your dev server isn't on `localhost:3000`.
+
+**Node-specific gotcha this script works around**: a naive version using the native `fetch()` API
+fails every single check even against a working server, because `fetch()` (built on undici)
+silently refuses to let you set a custom `Host` header — it's forbidden by the Fetch spec. curl has
+no such restriction, which is why the manual testing in this file works but a first attempt at
+automating it with `fetch()` didn't. The script uses `node:http` directly instead.
+
+## CI
+
+`.github/workflows/ci.yml` runs on every push/PR to `main`: `check:rls`, lint, and a build (using
+placeholder env vars — safe, since every route here is server-rendered and nothing touches a real
+Supabase project at build time). It does **not** run `verify:e2e`, since that needs a live Supabase
+project, seeded data, and pre-created test accounts — wiring that into CI (a disposable Supabase
+branch per PR, or a shared staging project) is a reasonable next step but wasn't done here.
+
 ## Deploying
 
-Not done in this session (no hosted Supabase project / Vercel project was created). To go live:
-create a Supabase project, run `supabase link` + `supabase db push` (or re-run the migrations
-against it directly), register the same `custom_access_token` hook under Authentication -> Hooks
-in the dashboard (the `[auth.hook.*]` block in `config.toml` only applies to local dev), set the
-same env vars (with real values) on Vercel, and point a wildcard domain
-(`*.yourplatform.app`) at the Vercel project per Vercel's wildcard domain docs.
+Not fully done — a real Supabase project exists and is live-verified (see "Status" above), but no
+Vercel project was created this session. To go live: create a Vercel project from this repo, set
+the same env vars (with real values — **not** the placeholders CI uses) there, register the same
+`custom_access_token` hook under Authentication -> Hooks in the Supabase dashboard if using a new
+project (the `[auth.hook.*]` block in `config.toml` only applies to local dev), and point a
+wildcard domain (`*.yourplatform.app`) at the Vercel project per Vercel's wildcard domain docs.

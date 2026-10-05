@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Reads supabase/migrations/*.sql only — no database connection needed. This is the
+      # architecture plan's highest-leverage safeguard: a tenant-scoped table that's missing its
+      # RLS policy or FORCE RLS anywhere in the migration history fails the build here, before it
+      # ever reaches a real database.
+      - name: RLS coverage check
+        run: node scripts/check-rls-coverage.mjs
+
+      - name: Lint
+        run: npm run lint --workspace=web
+
+      # Dummy values, not secrets — every route in this app is server-rendered (no static
+      # generation touches Supabase at build time), so these only need to satisfy lib/env.ts's
+      # Zod validation, not point at a real project. Confirmed locally: a real build with no live
+      # Supabase project behaves identically to one with real credentials.
+      - name: Build
+        working-directory: apps/web
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
+          SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-role-key
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+          PLATFORM_ROOT_DOMAIN: localhost
+        run: npm run build

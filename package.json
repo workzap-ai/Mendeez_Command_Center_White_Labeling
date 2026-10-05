@@ -10,9 +10,13 @@
     "build": "npm run build --workspace=web",
     "db:generate": "npm run db:generate --workspace=web",
     "check:rls": "node scripts/check-rls-coverage.mjs",
+    "verify:e2e": "node --env-file=apps/web/.env.local scripts/verify-e2e.mjs",
     "supabase:start": "npx supabase start",
     "supabase:stop": "npx supabase stop",
     "supabase:reset": "npx supabase db reset",
     "supabase:status": "npx supabase status"
+  },
+  "devDependencies": {
+    "@supabase/supabase-js": "^2.117.2"
   }
 }
