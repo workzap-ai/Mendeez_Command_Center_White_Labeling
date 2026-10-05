@@ -252,19 +252,34 @@ Supabase project at build time). It does **not** run `verify:e2e`, since that ne
 project, seeded data, and pre-created test accounts — wiring that into CI (a disposable Supabase
 branch per PR, or a shared staging project) is a reasonable next step but wasn't done here.
 
-**Real bug this CI workflow caught on its very first run**: the build succeeded every time locally
-(Windows) but failed on GitHub's Linux runner with `Cannot find module
-'../lightningcss.linux-x64-gnu.node'`. Root cause: Next.js 16 defaults `next build` to Turbopack,
-and Turbopack's bundling of the PostCSS transform worker pool (where `@tailwindcss/postcss` loads
-`lightningcss`'s native binary) appears to mis-resolve that binary's relative-path `require()` once
-it's bundled into a `.next/build/chunks/...` file — the require stack in the CI log traced straight
-through a `[turbopack-node]_transforms_postcss` chunk. This is a documented class of issue (Next.js
-16 + Tailwind v4 + Turbopack build, several open upstream discussions, no definitive upstream fix
-at time of writing) rather than anything specific to this codebase. Workaround: `apps/web/package.json`'s
-`build` script now runs `next build --webpack` instead of plain `next build` — webpack doesn't hit
-this bundling path, and a local webpack build was verified to produce an identical route list.
-`dev` still uses Turbopack (unaffected — this is a build-only, Linux-only symptom). Revisit the
-`--webpack` flag once upstream fixes the underlying Turbopack bundling bug.
+**Real bug this CI workflow caught on its very first run** (three debugging rounds to find the
+actual cause — worth recording in full so it isn't re-debugged from scratch): the build succeeded
+every time locally (Windows) but failed on GitHub's Linux runner with `Cannot find module
+'../lightningcss.linux-x64-gnu.node'`.
+
+- *First theory (wrong)*: assumed it was Turbopack-specific, since the error's require stack
+  passed through a `.next/build/chunks/[turbopack-node]_transforms_postcss` file. Switched the
+  build script to `next build --webpack` — same exact failure. This ruled Turbopack out: Next's
+  own webpack-config builder also requires `lightningcss` directly, so the bug wasn't in either
+  bundler's handling of it.
+- *Actual root cause*: **this repo had two `package-lock.json` files** — one at the workspace
+  root, and a stray leftover one inside `apps/web/` from before it was converted into an npm
+  workspace. `npm ci` at the root (what CI actually runs) used the root lockfile, and that
+  lockfile's `lightningcss` entry listed every platform's optional package *by name* inside
+  `optionalDependencies`, but had **no standalone, resolvable `"node_modules/lightningcss-<platform>"`
+  entries at all** — not even the Windows one this was developed on. Locally this went unnoticed
+  because `node_modules` already had the Windows binary in place from before the workspace was set
+  up (ordinary `npm install` doesn't always recompute a complete lockfile when the tree is already
+  satisfied); a clean-room `npm ci` on Linux had nothing to go on and silently installed zero
+  platform variants.
+- **Fix**: deleted both lockfiles and every `node_modules`, then ran one fresh `npm install` from
+  the workspace root with nothing pre-existing to short-circuit resolution. The regenerated root
+  lockfile now has complete, standalone entries for all 12 `lightningcss-*` platform packages.
+  Reverted the build script back to plain `next build` (Turbopack) — it was never the problem.
+- **Lesson for later**: an npm workspace should have exactly one `package-lock.json`, at the root.
+  If a module existed as a standalone project before joining a workspace, delete its own lockfile
+  explicitly rather than leaving it to silently coexist — `npm install` will not warn you that it's
+  there, and it can poison what gets recorded for other platforms.
 
 ## Deploying
 
