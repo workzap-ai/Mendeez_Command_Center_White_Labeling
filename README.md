@@ -281,6 +281,10 @@ every time locally (Windows) but failed on GitHub's Linux runner with `Cannot fi
   explicitly rather than leaving it to silently coexist — `npm install` will not warn you that it's
   there, and it can poison what gets recorded for other platforms.
 
+**Confirmed fixed**: run `cd9e0e1` (the commit with this fix) passed all three CI steps —
+RLS coverage check, lint, and build — on GitHub's actual `ubuntu-latest` runner.
+[View the run](https://github.com/workzap-ai/Mendeez_Command_Center_White_Labeling/actions/runs/37308741102).
+
 ## Deploying
 
 Not fully done — a real Supabase project exists and is live-verified (see "Status" above), but no
