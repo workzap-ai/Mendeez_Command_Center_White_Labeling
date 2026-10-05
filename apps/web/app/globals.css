@@ -1,0 +1,34 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+  /* Fallback brand tokens — overridden per-request by the (tenant) layout from
+     tenants.branding, never baked into the build. See lib/tenant/branding.ts. */
+  --brand-primary: #4f46e5;
+  --brand-primary-foreground: #ffffff;
+  --brand-accent: #f59e0b;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-brand-primary: var(--brand-primary);
+  --color-brand-primary-foreground: var(--brand-primary-foreground);
+  --color-brand-accent: var(--brand-accent);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}

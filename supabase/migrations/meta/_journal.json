@@ -1,0 +1,20 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791029780047,
+      "tag": "0001_core_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791032057583,
+      "tag": "0003_finance_module",
+      "breakpoints": true
+    }
+  ]
+}
