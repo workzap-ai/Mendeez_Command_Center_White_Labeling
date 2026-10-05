@@ -1,0 +1,1 @@
+ALTER TABLE "policies" ADD CONSTRAINT "policies_tenant_code_unique" UNIQUE("tenant_id","code");

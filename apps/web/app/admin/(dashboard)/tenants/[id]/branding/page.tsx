@@ -8,15 +8,14 @@ export default async function AdminTenantBrandingPage({ params }: { params: Prom
   const { id } = await params;
   const admin = createAdminClient();
 
-  const { data: tenant } = await admin.from('tenants').select('id, name, slug, branding').eq('id', id).maybeSingle();
+  // Neither query depends on the other's result (both only need the route's `id`), so fetch in
+  // parallel rather than paying for `domains` only after `tenant` has already come back.
+  const [{ data: tenant }, { data: domains }] = await Promise.all([
+    admin.from('tenants').select('id, name, slug, branding').eq('id', id).maybeSingle(),
+    admin.from('tenant_domains').select('id, domain, is_primary, verified_at').eq('tenant_id', id).order('created_at'),
+  ]);
   if (!tenant) notFound();
   const branding = (tenant.branding ?? {}) as TenantBranding;
-
-  const { data: domains } = await admin
-    .from('tenant_domains')
-    .select('id, domain, is_primary, verified_at')
-    .eq('tenant_id', id)
-    .order('created_at');
 
   return (
     <main className="mx-auto max-w-2xl p-8">

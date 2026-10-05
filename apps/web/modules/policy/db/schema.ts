@@ -9,7 +9,7 @@
 // `settings` (the actual numbers engines run on), and `history` stay jsonb: they're inherently
 // variable-shape per policy, not relational facts the way Finance's P&L lines are.
 import { sql } from 'drizzle-orm';
-import { pgTable, uuid, text, integer, jsonb, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, integer, jsonb, timestamp, unique } from 'drizzle-orm/pg-core';
 import { tenants } from '@/db/schema/core';
 import { tenantIsolation } from '@/db/schema/_shared';
 
@@ -35,5 +35,12 @@ export const policies = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [tenantIsolation(table)]
+  (table) => [
+    tenantIsolation(table),
+    // The `code` comment above promises "unique per tenant" — found in review that nothing
+    // actually enforced it (unlike tenant_memberships' analogous constraint). Two inserts for the
+    // same tenant + code (a retry, or two admins seeding concurrently) used to both silently
+    // succeed.
+    unique('policies_tenant_code_unique').on(table.tenantId, table.code),
+  ]
 ).enableRLS();

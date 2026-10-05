@@ -8,13 +8,16 @@ export default async function AdminTenantDetailPage({ params }: { params: Promis
   const { id } = await params;
   const admin = createAdminClient();
 
-  const { data: tenant } = await admin.from('tenants').select('id, name, slug, status, plan_id').eq('id', id).maybeSingle();
+  // Independent queries, fetched in parallel — all three only depend on the route's `id` param,
+  // not on each other's results, so there's no reason to pay three sequential round-trips.
+  const [{ data: tenant }, { data: enabledRows }, { data: plans }] = await Promise.all([
+    admin.from('tenants').select('id, name, slug, status, plan_id').eq('id', id).maybeSingle(),
+    admin.from('tenant_modules').select('module_key, enabled').eq('tenant_id', id),
+    admin.from('plans').select('id, key, name, included_modules').order('name'),
+  ]);
   if (!tenant) notFound();
 
-  const { data: enabledRows } = await admin.from('tenant_modules').select('module_key, enabled').eq('tenant_id', id);
   const enabledMap = new Map((enabledRows ?? []).map((r) => [r.module_key, r.enabled]));
-
-  const { data: plans } = await admin.from('plans').select('id, key, name, included_modules').order('name');
 
   return (
     <main className="mx-auto max-w-2xl p-8">
@@ -59,7 +62,6 @@ export default async function AdminTenantDetailPage({ params }: { params: Promis
               </div>
               <input type="hidden" name="tenantId" value={tenant.id} />
               <input type="hidden" name="moduleKey" value={mod.key} />
-              <input type="hidden" name="enabled" value={String(!enabled)} />
               <button
                 type="submit"
                 className={`rounded px-3 py-1.5 text-xs font-semibold ${enabled ? 'bg-green-600 text-white' : 'bg-gray-200 text-gray-700'}`}

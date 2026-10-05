@@ -9,7 +9,9 @@
 import 'server-only';
 import { createAdminClient } from '@/lib/supabase/admin';
 
-export async function syncModulesFromPlan(tenantId: string, planId: string) {
+// actingUserId: the admin who triggered this via the UI, or null for a Stripe-webhook-driven
+// sync (no human to attribute it to) — populates tenant_modules.enabled_by.
+export async function syncModulesFromPlan(tenantId: string, planId: string, actingUserId: string | null = null) {
   const admin = createAdminClient();
 
   const { data: plan, error: planErr } = await admin
@@ -38,6 +40,7 @@ export async function syncModulesFromPlan(tenantId: string, planId: string) {
     module_key: moduleKey,
     enabled: true,
     enabled_at: new Date().toISOString(),
+    enabled_by: actingUserId,
   }));
   const { error: upsertErr } = await admin.from('tenant_modules').upsert(rows, { onConflict: 'tenant_id,module_key' });
   if (upsertErr) throw new Error(upsertErr.message);
