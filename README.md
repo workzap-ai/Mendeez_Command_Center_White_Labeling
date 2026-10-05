@@ -252,6 +252,20 @@ Supabase project at build time). It does **not** run `verify:e2e`, since that ne
 project, seeded data, and pre-created test accounts — wiring that into CI (a disposable Supabase
 branch per PR, or a shared staging project) is a reasonable next step but wasn't done here.
 
+**Real bug this CI workflow caught on its very first run**: the build succeeded every time locally
+(Windows) but failed on GitHub's Linux runner with `Cannot find module
+'../lightningcss.linux-x64-gnu.node'`. Root cause: Next.js 16 defaults `next build` to Turbopack,
+and Turbopack's bundling of the PostCSS transform worker pool (where `@tailwindcss/postcss` loads
+`lightningcss`'s native binary) appears to mis-resolve that binary's relative-path `require()` once
+it's bundled into a `.next/build/chunks/...` file — the require stack in the CI log traced straight
+through a `[turbopack-node]_transforms_postcss` chunk. This is a documented class of issue (Next.js
+16 + Tailwind v4 + Turbopack build, several open upstream discussions, no definitive upstream fix
+at time of writing) rather than anything specific to this codebase. Workaround: `apps/web/package.json`'s
+`build` script now runs `next build --webpack` instead of plain `next build` — webpack doesn't hit
+this bundling path, and a local webpack build was verified to produce an identical route list.
+`dev` still uses Turbopack (unaffected — this is a build-only, Linux-only symptom). Revisit the
+`--webpack` flag once upstream fixes the underlying Turbopack bundling bug.
+
 ## Deploying
 
 Not fully done — a real Supabase project exists and is live-verified (see "Status" above), but no
