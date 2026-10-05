@@ -15,6 +15,13 @@
       "when": 1791032057583,
       "tag": "0003_finance_module",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791200507224,
+      "tag": "0006_policy_module",
+      "breakpoints": true
     }
   ]
 }

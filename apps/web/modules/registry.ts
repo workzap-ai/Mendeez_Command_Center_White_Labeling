@@ -3,9 +3,11 @@
 // line here — nothing about tenant resolution, billing, or nav rendering needs to change.
 import type { ModuleManifest } from './types';
 import { financeManifest } from './finance/manifest';
+import { policyManifest } from './policy/manifest';
 
 export const MODULE_REGISTRY: Record<string, ModuleManifest> = {
   finance: financeManifest,
+  policy: policyManifest,
 };
 
 export function getModuleForPath(pathname: string): ModuleManifest | null {

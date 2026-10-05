@@ -38,3 +38,21 @@ from public.tenants,
      (values (8), (9)) as m(month),
      (values ('net_sales', 4200000::numeric), ('cogs', 1850000::numeric), ('admin_expense', 620000::numeric)) as li(item, amount)
 where slug = 'acme';
+
+-- Second module (Policy & SOPs), on for acme only — proves the module pattern generalizes without
+-- touching proxy.ts, the admin panel, or ModuleNav: registering it here is the whole job.
+insert into public.modules (key, name, description, min_plan_tier)
+values ('policy', 'Policies & SOPs', 'One place for every rule the business runs on', 'starter')
+on conflict (key) do nothing;
+
+insert into public.tenant_modules (tenant_id, module_key, enabled)
+select id, 'policy', true from public.tenants where slug = 'acme'
+on conflict (tenant_id, module_key) do nothing;
+
+insert into public.policies (tenant_id, code, department, title, status, version, rule, detail, gaps, owner, source)
+select id, 'FIN-GST-01', 'finance', 'GST recording basis', 'approved', 1,
+  'Output and input GST are entered manually each month; not derived from a fixed ratio.',
+  '["Input GST varies month to month.", "Targets are set GST-inclusive."]'::jsonb,
+  '[{"field": "Historical basis", "prompt": "Were older months recorded ex-GST or inclusive?", "for": "finance", "answer": null}]'::jsonb,
+  'Finance Lead', 'seed fixture'
+from public.tenants where slug = 'acme';

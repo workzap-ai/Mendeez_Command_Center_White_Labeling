@@ -9,7 +9,7 @@ production untouched. Mendeez becomes "tenant #1" here in a later migration phas
 Stack: **Next.js (App Router) + Supabase (Postgres + Auth + Storage) + Drizzle** (schema/migrations
 only, chosen specifically for colocating RLS policies with table definitions) + Stripe (Phase 3+).
 
-## Status: Phase 1–4 built and live-verified end to end. Phase 5 (Mendeez migration) deliberately not started.
+## Status: Phase 1–4 built and live-verified end to end, plus a second module (Policy) proving the pattern generalizes. Phase 5 (Mendeez migration) deliberately not started. Pushed to GitHub: `workzap-ai/Mendeez_Command_Center_White_Labeling`.
 
 **Phase 1 — platform skeleton**: tenant resolution (`proxy.ts`), core DB schema + RLS
 (`db/schema/core.ts`), Supabase Auth wiring (custom JWT claim hook), module registry/guard
@@ -57,6 +57,16 @@ confirmed below), and add/remove `tenant_domains` rows. **Vercel wiring is NOT l
 against a real project (none was connected this session); `addDomainAction` today only records the
 row, so a domain added through the admin UI will not actually route traffic until that function is
 wired in and the result's verification status feeds `tenant_domains.verified_at`.
+
+**Second module built to prove the pattern generalizes**: `modules/policy/` (Policies & SOPs — one
+`policies` table, jsonb columns for the genuinely variable-shape parts: `gaps`, `settings`,
+`history`). Registering it was exactly the five steps the architecture promised: a `modules/policy/`
+folder, `manifest.ts`, `db/schema.ts`, one line in `registry.ts`, a seed row in `modules` — **zero
+changes to `proxy.ts`, the admin panel, `ModuleNav`, or billing**. Live-verified: acme (Finance +
+Policy both enabled) sees both in nav and both pages render real data; zenith (neither enabled)
+sees neither, and `/policy` 404s there same as `/finance/pl` does; the admin module-toggle grid at
+`/admin/tenants/[id]` showed "Policies & SOPs" automatically, with no admin-code change, the moment
+the module row existed.
 
 Not built yet: the Mendeez migration (Phase 5) — deliberately not started without a separate,
 explicit go-ahead, since it touches a live production system serving 9 real shops (DNS cutover,
@@ -130,12 +140,15 @@ apps/web/              Next.js app (the only app for now)
                           bypasses RLS — gate every call site on platform-admin)
   lib/db/admin.ts        Drizzle connection for scripts / future super-admin backend (also bypasses
                           RLS — same rule as above)
-  modules/                the module system: registry.ts (finance is the one entry so far),
-                          guard.ts (requireModule, server-side enablement check), ModuleNav.tsx
+  modules/                the module system: registry.ts (finance, policy), guard.ts
+                          (requireModule, server-side enablement check), ModuleNav.tsx
                           (renders only a tenant's enabled modules), types.ts
-  modules/finance/        the reference module: manifest.ts, db/schema.ts (3 tables)
+  modules/finance/        reference module #1: manifest.ts, db/schema.ts (3 tables)
+  modules/policy/         reference module #2: manifest.ts, db/schema.ts (1 table) — added purely
+                          to prove the pattern generalizes with zero changes elsewhere
   app/(tenant)/           everything that needs a resolved tenant (layout.tsx loads it + renders
-                          branding + nav), sign-in/sign-up, the dashboard home page, finance/pl/
+                          branding + nav), sign-in/sign-up, the dashboard home page, finance/pl/,
+                          policy/
   app/tenant-not-found/, app/tenant-suspended/   what proxy.ts rewrites to on failure
   lib/auth/platform-admin.ts   requirePlatformAdmin() — the /admin gate, checks
                           users.is_platform_admin via the RLS-scoped client (not admin.ts)
@@ -151,14 +164,17 @@ apps/web/              Next.js app (the only app for now)
   lib/domains/vercel.ts   Vercel Domains API scaffold, NOT wired up (no Vercel project connected)
 supabase/
   config.toml             local dev config, incl. the custom_access_token auth hook wiring
-  migrations/             0000_prereqs.sql (current_tenant_ids(), must precede the policies
+  migrations/             0000_prereqs.sql (current_tenant_ids(), must precede the policies*
                           below) -> 0001_core_schema.sql (drizzle-kit) -> 0002_rls_support.sql
-                          (FORCE RLS, auth hook, resolve_tenant_by_host(), needs 0001's tables) ->
-                          0003_finance_module.sql (drizzle-kit) -> 0004_finance_force_rls.sql
-                          (same FORCE-RLS follow-up every module's migration needs) ->
-                          0005_tenant_assets_storage.sql (Storage bucket + RLS for logos)
-  seed.sql                two local-dev tenants (acme with Finance on, zenith with it off) plus a
-                          few P&L rows for acme — see below for finishing the setup
+                          (FORCE RLS, auth hook [SECURITY DEFINER — see Status], resolve_tenant_by_host(),
+                          needs 0001's tables) -> 0003_finance_module.sql (drizzle-kit) ->
+                          0004_finance_force_rls.sql -> 0005_tenant_assets_storage.sql (Storage
+                          bucket + RLS for logos) -> 0006_policy_module.sql (drizzle-kit, the
+                          `policies` *table*, unrelated to RLS "policies" above) ->
+                          0007_policy_force_rls.sql. Every module after Finance follows this same
+                          <module>.sql + <module>_force_rls.sql two-file pattern.
+  seed.sql                two local-dev tenants (acme with Finance + Policy on, zenith with both
+                          off) plus a few P&L rows and one policy for acme
 scripts/
   check-rls-coverage.mjs  `npm run check:rls` — fails if any tenant-scoped table across the whole
                           migration history is missing its RLS policy or FORCE RLS
