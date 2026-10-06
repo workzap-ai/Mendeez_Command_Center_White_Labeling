@@ -1,5 +1,9 @@
 # Commerce Center Platform
 
+> **FROZEN (2026-10-06) — do not edit here.** This code was imported into the Mendeez
+> `finance-dashboard` repo under `platform/` (branch `platform/white-label`), which is now the only
+> place it is maintained. Changes made here will not be picked up.
+
 A multi-tenant, white-label SaaS platform: one deployment serves every customer (tenant),
 identified by subdomain or custom domain, with per-tenant branding and per-tenant module
 on/off switches controlled by a platform-owner super-admin. This is a **new, separate codebase**
