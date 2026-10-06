@@ -29,6 +29,13 @@
       "when": 1791204934916,
       "tag": "0008_policy_code_unique",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791261644094,
+      "tag": "0009_retail_module",
+      "breakpoints": true
     }
   ]
 }

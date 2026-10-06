@@ -4,10 +4,12 @@
 import type { ModuleManifest } from './types';
 import { financeManifest } from './finance/manifest';
 import { policyManifest } from './policy/manifest';
+import { retailManifest } from './retail/manifest';
 
 export const MODULE_REGISTRY: Record<string, ModuleManifest> = {
   finance: financeManifest,
   policy: policyManifest,
+  retail: retailManifest,
 };
 
 export function getModuleForPath(pathname: string): ModuleManifest | null {

@@ -93,6 +93,10 @@ async function main() {
   const acmePolicy = await get(acmeHost, '/policy', acmeCookie);
   check('acme /policy returns real data (200)', acmePolicy.status === 200 && acmePolicy.body.includes('GST recording basis'));
 
+  check('acme home shows Retail module', acmeHome.body.includes('Retail'));
+  const acmeRetail = await get(acmeHost, '/retail', acmeCookie);
+  check('acme /retail returns real data (200)', acmeRetail.status === 200 && acmeRetail.body.includes('DHA-01'));
+
   const zenithHome = await get(zenithHost, '/', zenithCookie);
   check('zenith home shows no modules', zenithHome.body.includes('No modules are enabled'));
 
@@ -101,6 +105,9 @@ async function main() {
 
   const zenithPolicy = await get(zenithHost, '/policy', zenithCookie);
   check('zenith /policy is blocked (404, not just hidden)', zenithPolicy.status === 404);
+
+  const zenithRetail = await get(zenithHost, '/retail', zenithCookie);
+  check('zenith /retail is blocked (404, not just hidden)', zenithRetail.status === 404);
 
   // Cross-tenant isolation via the real app, not simulated SQL.
   check("acme page never leaks zenith's data", !acmeHome.body.includes('Zenith Stores'));

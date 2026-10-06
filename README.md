@@ -9,7 +9,7 @@ production untouched. Mendeez becomes "tenant #1" here in a later migration phas
 Stack: **Next.js (App Router) + Supabase (Postgres + Auth + Storage) + Drizzle** (schema/migrations
 only, chosen specifically for colocating RLS policies with table definitions) + Stripe (Phase 3+).
 
-## Status: Phase 1–4 built and live-verified end to end, plus a second module (Policy) proving the pattern generalizes. Phase 5 (Mendeez migration) deliberately not started. Pushed to GitHub: `workzap-ai/Mendeez_Command_Center_White_Labeling`, with CI (`.github/workflows/ci.yml`) and a repeatable E2E verification script (`npm run verify:e2e`) covering the manual checks described below.
+## Status: Phase 1–4 built and live-verified end to end, plus three modules (Finance, Policy, Retail) proving the pattern generalizes. Phase 5 (Mendeez migration) deliberately not started. Pushed to GitHub: `workzap-ai/Mendeez_Command_Center_White_Labeling`, with CI (`.github/workflows/ci.yml`) and a repeatable E2E verification script (`npm run verify:e2e`, 15 checks) covering the manual checks described below.
 
 **Phase 1 — platform skeleton**: tenant resolution (`proxy.ts`), core DB schema + RLS
 (`db/schema/core.ts`), Supabase Auth wiring (custom JWT claim hook), module registry/guard
@@ -58,15 +58,19 @@ against a real project (none was connected this session); `addDomainAction` toda
 row, so a domain added through the admin UI will not actually route traffic until that function is
 wired in and the result's verification status feeds `tenant_domains.verified_at`.
 
-**Second module built to prove the pattern generalizes**: `modules/policy/` (Policies & SOPs — one
-`policies` table, jsonb columns for the genuinely variable-shape parts: `gaps`, `settings`,
-`history`). Registering it was exactly the five steps the architecture promised: a `modules/policy/`
-folder, `manifest.ts`, `db/schema.ts`, one line in `registry.ts`, a seed row in `modules` — **zero
-changes to `proxy.ts`, the admin panel, `ModuleNav`, or billing**. Live-verified: acme (Finance +
-Policy both enabled) sees both in nav and both pages render real data; zenith (neither enabled)
-sees neither, and `/policy` 404s there same as `/finance/pl` does; the admin module-toggle grid at
-`/admin/tenants/[id]` showed "Policies & SOPs" automatically, with no admin-code change, the moment
-the module row existed.
+**Second and third modules built to prove the pattern generalizes**: `modules/policy/` (Policies &
+SOPs — one `policies` table, jsonb columns for the genuinely variable-shape parts: `gaps`,
+`settings`, `history`) and `modules/retail/` (Retail / Outlets — **two** related tables,
+`retail_outlets` and `retail_daily_sales`, the latter with a real foreign key to the former and its
+own independent `tenantIsolation()` policy rather than relying on the join to enforce isolation —
+deliberately the more complex case, since Policy only needed one flat table). Registering each was
+exactly the five steps the architecture promised: a `modules/<key>/` folder, `manifest.ts`,
+`db/schema.ts`, one line in `registry.ts`, a seed row in `modules` — **zero changes to `proxy.ts`,
+the admin panel, `ModuleNav`, or billing**, for either one. Live-verified both the same way: acme
+(all three modules enabled) sees Finance, Policy, and Retail in nav with real data on every page;
+zenith (none enabled) sees nothing, and `/retail` 404s there exactly like `/finance/pl` and
+`/policy` do; the admin module-toggle grid showed "Retail / Outlets" automatically, with no
+admin-code change, the moment the module row existed — same as Policy before it.
 
 Not built yet: the Mendeez migration (Phase 5) — deliberately not started without a separate,
 explicit go-ahead, since it touches a live production system serving 9 real shops (DNS cutover,
@@ -146,6 +150,10 @@ apps/web/              Next.js app (the only app for now)
   modules/finance/        reference module #1: manifest.ts, db/schema.ts (3 tables)
   modules/policy/         reference module #2: manifest.ts, db/schema.ts (1 table) — added purely
                           to prove the pattern generalizes with zero changes elsewhere
+  modules/retail/         reference module #3: manifest.ts, db/schema.ts (2 related tables,
+                          outlets + a daily-sales fact table with its own independent RLS policy)
+  modules/setEnabled.ts   shared tenant_modules upsert (enabled_at/enabled_by) used by the admin
+                          toggle and lib/billing/syncModulesFromPlan.ts
   app/(tenant)/           everything that needs a resolved tenant (layout.tsx loads it + renders
                           branding + nav), sign-in/sign-up, the dashboard home page, finance/pl/,
                           policy/
@@ -171,10 +179,13 @@ supabase/
                           0004_finance_force_rls.sql -> 0005_tenant_assets_storage.sql (Storage
                           bucket + RLS for logos) -> 0006_policy_module.sql (drizzle-kit, the
                           `policies` *table*, unrelated to RLS "policies" above) ->
-                          0007_policy_force_rls.sql. Every module after Finance follows this same
-                          <module>.sql + <module>_force_rls.sql two-file pattern.
-  seed.sql                two local-dev tenants (acme with Finance + Policy on, zenith with both
-                          off) plus a few P&L rows and one policy for acme
+                          0007_policy_force_rls.sql -> 0008_policy_code_unique.sql (missing
+                          unique(tenant_id, code), found in review) -> 0009_retail_module.sql
+                          (drizzle-kit) -> 0010_retail_force_rls.sql. Every module after Finance
+                          follows this same <module>.sql + <module>_force_rls.sql two-file pattern.
+  seed.sql                two local-dev tenants (acme with all 3 modules on, zenith with all 3
+                          off) plus fixture data for each: P&L rows, one policy, two outlets with
+                          a few days of sales
 scripts/
   check-rls-coverage.mjs  `npm run check:rls` — fails if any tenant-scoped table across the whole
                           migration history is missing its RLS policy or FORCE RLS
